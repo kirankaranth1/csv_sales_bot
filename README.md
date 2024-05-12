@@ -6,7 +6,7 @@ This Python project utilizes the LangChain library along with OpenAI's GPT-3.5 m
 ## Setup Instructions
 1. **Clone the Repository**: Clone this repository to your local machine:
 ```shell
-https://github.com/kirankaranth1/csv_sales_bo
+https://github.com/kirankaranth1/csv_sales_bot
 ```
 2. **Install Dependencies**: Navigate to the project directory and install the required libraries using pip:
 ```shell
