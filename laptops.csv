@@ -1,4 +1,4 @@
-ID,Brand,Model,Display,Processor,RAM,Storage,Graphics,OS,Price
+ID,Brand,Model,Display,Processor,RAM,Storage,Graphics,OS,Price(In Indian Rupees)
 100001,Nova,Nova i3 14,QHD+ (2560x1440),i3,32GB DDR4,512GB PCIe NVMe SSD,NVIDIA RTX 3060,Windows 11 Pro,125425
 100002,Apex,Apex i9 15,UHD (3840x2160),i9,4GB DDR4,512GB PCIe NVMe SSD,NVIDIA RTX 3060,Windows 11 Pro,41120
 100003,Nova,Nova Ryzen 7 14,Full HD (1920x1080),Ryzen 7,16GB DDR4,512GB PCIe NVMe SSD,NVIDIA RTX 3060,Windows 11 Pro,85000
