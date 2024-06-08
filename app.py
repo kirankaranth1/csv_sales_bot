@@ -1,60 +1,75 @@
-from langchain_openai import ChatOpenAI
-from langchain_community.document_loaders.csv_loader import CSVLoader
-from langchain_community.vectorstores import FAISS
-from langchain_openai import OpenAIEmbeddings
-from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain_core.prompts import ChatPromptTemplate
-from langchain.chains import create_retrieval_chain
-from langchain.chains import create_history_aware_retriever
-from langchain_core.prompts import MessagesPlaceholder
+import streamlit as st
+import os
+from utils import get_answer, text_to_speech, autoplay_audio, speech_to_text
+from streamlit_float import *
 from langchain_core.messages import HumanMessage, AIMessage
+from streamlit_mic_recorder import mic_recorder
 
-llm = ChatOpenAI(model="gpt-3.5-turbo")
-loader = CSVLoader(file_path="./laptops.csv")
-data = loader.load()
-vector = FAISS.from_documents(data, OpenAIEmbeddings())
 
-prompt = ChatPromptTemplate.from_messages([
-    ("system", """You are an expert sales assistant at a laptop store. Your job is to recommend a few laptops to the 
-    customer based on their requirements.
-    If the user is asking something other than buying laptops, let them know that this is a laptop store and purchasing 
-    laptops is the only thing that can be done here. 
-    Try to fit in the customer to a user persona like student, teacher, gamer, 
-    business professional, researcher, teacher, casual everyday user, content creator etc. to recommend laptops. You 
-    don't have to stick to the above personas strictly but this is a good guide. It is very important that you do not 
-    mention to the user that you're trying to fit them into these personas. It is extremely important to ask user 
-    questions to get more information about user's requirements and work pattern if you do not have enough 
-    information to make an informed decision.It is absolutely mandatory to use only the below laptop products with 
-    their detailed specification as mentioned in the inventory. Context:
+# Float feature initialization
+float_init()
 
-<context>
-{context}
-</context>
-         """),
-    MessagesPlaceholder(variable_name="chat_history"),
-    ("user", "{input}")
-])
+def initialize_session_state():
+    if "messages" not in st.session_state:
+        st.session_state.messages = [
+            {"role": "assistant", "content": "Hi! Welcome to our laptop store, how may I help you?"}
+        ]
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = [
+            AIMessage(content="Hi! Welcome to our laptop store, how may I help you?")
+        ]
 
-document_chain = create_stuff_documents_chain(llm, prompt)
-retriever = vector.as_retriever()
-retriever.search_kwargs = {'k': 10}
+initialize_session_state()
 
-history_aware_prompt = ChatPromptTemplate.from_messages([
-    MessagesPlaceholder(variable_name="chat_history"),
-    ("user", "{input}"),
-    ("user", "Given the above conversation, generate a search query to look up to get information relevant to the "
-             "conversation")
-])
-retriever_chain = create_history_aware_retriever(llm, retriever, history_aware_prompt)
+st.title("OpenAI Conversational Chatbot 🤖")
 
-retrieval_chain = create_retrieval_chain(retriever_chain, document_chain)
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.write(message["content"])
 
-print("Hi! Welcome to our laptop store, how may I help you?\n")
+# Create footer container for the microphone
+footer_container = st.container()
+with footer_container:
+    audio = mic_recorder(
+        start_prompt="Start recording",
+        stop_prompt="Stop recording",
+        just_once=False,
+        use_container_width=False,
+        callback=None,
+        args=(),
+        kwargs={},
+        key=None
+    )
+    audio_bytes = audio["bytes"] if audio is not None else None
 
-chat_history = []
-while True:
-    user_question = input("\nUser: ")
-    response = retrieval_chain.invoke({"input": f"{user_question}", "chat_history": chat_history})
-    chat_history.append(HumanMessage(content=user_question))
-    chat_history.append(AIMessage(content=response["answer"]))
-    print("\nSales bot: ", response["answer"])
+if audio_bytes:
+    # Write the audio bytes to a file
+    with st.spinner("Transcribing..."):
+        webm_file_path = "temp_audio.mp3"
+        with open(webm_file_path, "wb") as f:
+            f.write(audio_bytes)
+
+        transcript = speech_to_text(webm_file_path)
+        if transcript:
+            st.session_state.messages.append({"role": "user", "content": transcript})
+
+            with st.chat_message("user"):
+                st.write(transcript)
+            os.remove(webm_file_path)
+
+if st.session_state.messages[-1]["role"] != "assistant":
+    with st.chat_message("assistant"):
+        question = st.session_state.messages[-1]["content"]
+        with st.spinner("Thinking🤔..."):
+            final_response = get_answer(question, st.session_state.chat_history)
+        with st.spinner("Generating audio response..."):
+            audio_file = text_to_speech(final_response)
+            autoplay_audio(audio_file)
+        st.write(final_response)
+        st.session_state.messages.append({"role": "assistant", "content": final_response})
+        st.session_state.chat_history.append(HumanMessage(content=question))
+        st.session_state.chat_history.append(AIMessage(content=final_response))
+        os.remove(audio_file)
+
+# Float the footer container and provide CSS to target it with
+footer_container.float("bottom: 0rem;")
