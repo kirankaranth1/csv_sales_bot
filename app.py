@@ -1,6 +1,6 @@
 import streamlit as st
 import os
-from utils import get_answer, text_to_speech, autoplay_audio, speech_to_text
+from utils import get_answer, text_to_speech, autoplay_audio, speech_to_text, get_answer_stream
 from streamlit_float import *
 from langchain_core.messages import HumanMessage, AIMessage
 from streamlit_mic_recorder import mic_recorder
@@ -60,16 +60,25 @@ if audio_bytes:
 if st.session_state.messages[-1]["role"] != "assistant":
     with st.chat_message("assistant"):
         question = st.session_state.messages[-1]["content"]
-        with st.spinner("Thinking🤔..."):
-            final_response = get_answer(question, st.session_state.chat_history)
-        with st.spinner("Generating audio response..."):
-            audio_file = text_to_speech(final_response)
-            autoplay_audio(audio_file)
-        st.write(final_response)
-        st.session_state.messages.append({"role": "assistant", "content": final_response})
+        final_response = []
+            # for chunk in get_answer_stream(question, st.session_state.chat_history):
+            #     #st.write(chunk)
+            #     final_response.append(chunk)
+
+        get_answer_stream(question, st.session_state.chat_history)
+        # for sentence in get_answer_stream(question, st.session_state.chat_history):
+        #     final_response.append(sentence)
+        #     audio_file = text_to_speech(sentence)
+        #     autoplay_audio(audio_file)
+
+        # with st.spinner("Generating audio response..."):
+        #     audio_file = text_to_speech(final_response)
+        #     autoplay_audio(audio_file)
+
+        st.session_state.messages.append({"role": "assistant", "content": " ".join(final_response)})
         st.session_state.chat_history.append(HumanMessage(content=question))
         st.session_state.chat_history.append(AIMessage(content=final_response))
-        os.remove(audio_file)
+        # os.remove(audio_file)
 
 # Float the footer container and provide CSS to target it with
 footer_container.float("bottom: 0rem;")

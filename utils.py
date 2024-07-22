@@ -1,4 +1,5 @@
 import os
+import time
 
 from openai import OpenAI
 import base64
@@ -58,6 +59,24 @@ retrieval_chain = create_retrieval_chain(retriever_chain, document_chain)
 
 def get_answer(question, chat_history):
     return retrieval_chain.invoke({"input": f"{question}", "chat_history": chat_history})["answer"]
+
+
+def get_answer_stream(question, chat_history):
+    placeholder = st.empty()
+    full_response = ""
+    sentence = ""
+    sentence_end_chars = {'.', '?', '!', '\n'}
+    for chunk in retrieval_chain.stream({"input": f"{question}", "chat_history": chat_history}):
+        if "answer" in chunk:
+            full_response += chunk["answer"]
+            sentence += chunk["answer"]
+            placeholder.markdown(full_response + "▌")
+            time.sleep(0.02)
+            # if sentence and sentence[-1] in sentence_end_chars:
+            #     yield sentence
+            #     sentence = ""
+        placeholder.markdown(full_response)
+
 
 
 def speech_to_text(audio_data):
