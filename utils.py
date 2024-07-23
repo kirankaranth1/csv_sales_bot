@@ -1,5 +1,11 @@
 import os
+import pathlib
+import random
+import threading
+import pyaudio
 import time
+import soundfile as sf
+from queue import Queue
 
 from openai import OpenAI
 import base64
@@ -57,25 +63,31 @@ retriever_chain = create_history_aware_retriever(llm, retriever, history_aware_p
 retrieval_chain = create_retrieval_chain(retriever_chain, document_chain)
 
 
+def audio_player(audio_queue):
+    while True:
+        audio_file = audio_queue.get()
+        if audio_file is None:
+            break
+        play_audio(audio_file)
+
+audio_queue = Queue()
+audio_thread = threading.Thread(target=audio_player, args=(audio_queue,))
+audio_thread.start()
+
+
 def get_answer(question, chat_history):
     return retrieval_chain.invoke({"input": f"{question}", "chat_history": chat_history})["answer"]
 
 
 def get_answer_stream(question, chat_history):
-    placeholder = st.empty()
-    full_response = ""
     sentence = ""
     sentence_end_chars = {'.', '?', '!', '\n'}
     for chunk in retrieval_chain.stream({"input": f"{question}", "chat_history": chat_history}):
         if "answer" in chunk:
-            full_response += chunk["answer"]
             sentence += chunk["answer"]
-            placeholder.markdown(full_response + "▌")
-            time.sleep(0.02)
-            # if sentence and sentence[-1] in sentence_end_chars:
-            #     yield sentence
-            #     sentence = ""
-        placeholder.markdown(full_response)
+            if sentence and sentence[-1] in sentence_end_chars:
+                yield sentence
+                sentence = ""
 
 
 
@@ -95,7 +107,7 @@ def text_to_speech(input_text):
         voice="nova",
         input=input_text
     )
-    webm_file_path = "temp_audio_play.mp3"
+    webm_file_path = f"temp_audio_play_{random.randint(0, 1000)}.mp3"
     with open(webm_file_path, "wb") as f:
         response.stream_to_file(webm_file_path)
     return webm_file_path
@@ -111,3 +123,25 @@ def autoplay_audio(file_path: str):
     </audio>
     """
     st.markdown(md, unsafe_allow_html=True)
+
+
+def play_audio(audio_file_path):
+    if audio_file_path:
+        with sf.SoundFile(audio_file_path, 'r') as sound_file:
+            audio = pyaudio.PyAudio()
+            stream = audio.open(format=pyaudio.paInt16, channels=sound_file.channels, rate=sound_file.samplerate,
+                                output=True)
+            data = sound_file.read(1024, dtype='int16')
+
+            while len(data) > 0:
+                stream.write(data.tobytes())
+                data = sound_file.read(102, dtype='int16')
+
+            stream.stop_stream()
+            stream.close()
+            audio.terminate()
+        pathlib.Path.unlink(audio_file_path)
+
+
+if __name__ == '__main__':
+    pass
